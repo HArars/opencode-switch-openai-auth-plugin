@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+tmp/
+.DS_Store
+.idea/
+.vscode/
+switch_auth_*.md
+opencode-auth-switch

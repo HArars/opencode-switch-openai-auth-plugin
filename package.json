@@ -1,0 +1,40 @@
+{
+  "name": "@harars/opencode-switch-auth-plugin",
+  "version": "0.1.0",
+  "description": "OpenCode TUI plugin for switching saved OpenAI OAuth accounts",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js"
+  },
+  "engines": {
+    "opencode": "^1.0.0"
+  },
+  "oc-plugin": [["tui", {
+    "compact": true
+  }]],
+  "scripts": {
+    "build": "bun ./scripts/build.ts",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.93",
+    "@opentui/solid": "^0.1.93",
+    "solid-js": "^1.9.12",
+    "typescript": "^6.0.2"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.11"
+  }
+}
