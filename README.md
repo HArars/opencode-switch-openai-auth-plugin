@@ -67,20 +67,14 @@ bunx tsc -p tsconfig.json --noEmit
 
 ## Loading The Plugin
 
-Build the plugin:
-
-```bash
-bun run build
-```
-
-Then add the built TUI entry file to your OpenCode `tui.json`.
+After publishing to npm, add the package name directly to your OpenCode `tui.json`.
 
 Example:
 
 ```json
 {
   "plugin": [
-    "file:///absolute/path/to/opencode-switch-auth-plugin/dist/tui.js"
+    "@harars/opencode-switch-openai-auth-plugin"
   ],
   "plugin_enabled": {
     "harars.switch-auth": true
@@ -88,10 +82,25 @@ Example:
 }
 ```
 
-You can also load the source entry directly during development if your OpenCode setup already supports file-based source plugins.
+This package is published as source files so OpenCode can load the TUI entry directly from the installed package.
+
+For local development, you can still point `tui.json` at a local file path.
+
+Example local file setup:
+
+```json
+{
+  "plugin": [
+    "file:///absolute/path/to/opencode-switch-openai-auth-plugin/src/tui.tsx"
+  ],
+  "plugin_enabled": {
+    "harars.switch-auth": true
+  }
+}
+```
 
 ## Package
 
-- package name: `@harars/opencode-switch-auth-plugin`
+- package name: `@harars/opencode-switch-openai-auth-plugin`
 - plugin id: `harars.switch-auth`
 - license: MIT

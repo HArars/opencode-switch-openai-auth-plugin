@@ -1,10 +1,15 @@
 import "@opentui/solid/runtime-plugin-support"
 
+process.env.NODE_ENV = "production"
+
 const result = await Bun.build({
   entrypoints: ["./src/index.ts", "./src/tui.tsx"],
   outdir: "./dist",
   target: "bun",
   minify: false,
+  define: {
+    "process.env.NODE_ENV": '"production"',
+  },
 })
 
 if (!result.success) {

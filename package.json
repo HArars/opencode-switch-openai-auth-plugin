@@ -1,13 +1,30 @@
 {
-  "name": "@harars/opencode-switch-auth-plugin",
+  "name": "@harars/opencode-switch-openai-auth-plugin",
   "version": "0.1.0",
   "description": "OpenCode TUI plugin for switching saved OpenAI OAuth accounts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HArars/opencode-switch-openai-auth-plugin.git"
+  },
+  "homepage": "https://github.com/HArars/opencode-switch-openai-auth-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/HArars/opencode-switch-openai-auth-plugin/issues"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "tui",
+    "openai",
+    "oauth",
+    "auth",
+    "account-switcher"
+  ],
   "type": "module",
   "license": "MIT",
-  "main": "./dist/index.js",
+  "main": "./src/index.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./tui": "./dist/tui.js"
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
   },
   "engines": {
     "opencode": "^1.0.0"
@@ -21,7 +38,7 @@
     "test": "bun test"
   },
   "files": [
-    "dist",
+    "src",
     "README.md",
     "LICENSE"
   ],
@@ -31,10 +48,10 @@
   "dependencies": {
     "@opentui/core": "^0.1.93",
     "@opentui/solid": "^0.1.93",
-    "solid-js": "^1.9.12",
-    "typescript": "^6.0.2"
+    "solid-js": "^1.9.12"
   },
   "devDependencies": {
-    "bun-types": "^1.3.11"
+    "bun-types": "^1.3.11",
+    "typescript": "^6.0.2"
   }
 }
