@@ -1,6 +1,9 @@
 # opencode-switch-openai-auth-plugin
 
+<img width="1107" height="525" alt="screenshot" src="https://github.com/user-attachments/assets/511a6118-e470-4955-b5a0-c8d9672d060b" />
+
 OpenCode TUI plugin for saving and switching between multiple OpenAI OAuth accounts with a single `/switch` command.
+
 
 ## Features
 
