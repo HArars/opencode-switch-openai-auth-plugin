@@ -70,12 +70,31 @@ bunx tsc -p tsconfig.json --noEmit
 
 ## Loading The Plugin
 
-After publishing to npm, add the package name directly to your OpenCode `tui.json`.
+Recommended install:
 
-Example:
+```bash
+opencode plugin @harars/opencode-switch-openai-auth-plugin
+```
+
+When run inside a project, this installs the package and updates the workspace plugin config under `.opencode/`.
+
+Verified workspace config layout:
+
+` .opencode/opencode.json `
 
 ```json
 {
+  "plugin": [
+    "@harars/opencode-switch-openai-auth-plugin"
+  ]
+}
+```
+
+` .opencode/tui.json `
+
+```json
+{
+  "$schema": "https://example.com/tui.json",
   "plugin": [
     "@harars/opencode-switch-openai-auth-plugin"
   ],
