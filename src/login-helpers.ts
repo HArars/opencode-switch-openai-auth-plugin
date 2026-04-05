@@ -41,14 +41,26 @@ export function target(authz: OAuthAuthz) {
   return authz.instructions.match(/[A-Z0-9]{4}-[A-Z0-9]{4,5}/)?.[0] ?? authz.url
 }
 
+export function detail(err: unknown) {
+  if (err instanceof Error) return err.message
+  if (typeof err === "string") return err
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
 export async function runOAuthCallback(
   callback: (input: { providerID: "openai"; method: number; code?: string }) => Promise<{ error?: unknown }>,
   input: { providerID: "openai"; method: number; code?: string },
 ) {
   try {
     const res = await callback(input)
-    return !res.error
-  } catch {
-    return false
+    return res.error
+      ? { ok: false as const, error: res.error }
+      : { ok: true as const }
+  } catch (err) {
+    return { ok: false as const, error: detail(err) }
   }
 }

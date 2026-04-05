@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import { TextAttributes } from "@opentui/core"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import { onMount } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
-import { clip, runOAuthCallback, target } from "./login-helpers"
+import { clip, detail, runOAuthCallback, target } from "./login-helpers"
 import type { OAuthAuthz, ProviderMethod, ProviderPrompt } from "./types"
 import { readCurrentAuth, upsertSavedAccount } from "./store"
 
@@ -21,6 +22,7 @@ type ClientResult<T> =
 function visible(prompt: ProviderPrompt, values: Record<string, string>) {
   if (!prompt.when) return true
   const cur = values[prompt.when.key]
+  if (cur === undefined) return false
   if (prompt.when.op === "eq") return cur === prompt.when.value
   return cur !== prompt.when.value
 }
@@ -35,10 +37,10 @@ function unwrap<T>(input: ClientResult<T>) {
     return { ok: true as const, data: input as T }
   }
   if ("error" in input && input.error !== undefined) {
-    return { ok: false as const }
+    return { ok: false as const, error: input.error }
   }
   if ("data" in input) {
-    return input.data === undefined ? { ok: false as const } : { ok: true as const, data: input.data }
+    return input.data === undefined ? { ok: false as const, error: "Missing response data" } : { ok: true as const, data: input.data }
   }
   return { ok: true as const, data: input as T }
 }
@@ -62,8 +64,11 @@ function bind(api: TuiPluginApi, authz: OAuthAuthz) {
   })
 }
 
-function WaitView(props: { api: TuiPluginApi; title: string; authz: OAuthAuthz }) {
+function WaitView(props: { api: TuiPluginApi; title: string; authz: OAuthAuthz; run: () => Promise<void> }) {
   bind(props.api, props.authz)
+  onMount(() => {
+    void props.run()
+  })
   return (
     <box paddingLeft={2} paddingRight={2} gap={1} paddingBottom={1}>
       <text attributes={TextAttributes.BOLD}>{props.title}</text>
@@ -101,8 +106,7 @@ function CodePrompt(props: {
 }
 
 function wait(api: TuiPluginApi, title: string, authz: OAuthAuthz, run: () => Promise<void>) {
-  api.ui.dialog.replace(() => <WaitView api={api} title={title} authz={authz} />)
-  void run()
+  api.ui.dialog.replace(() => <WaitView api={api} title={title} authz={authz} run={run} />)
 }
 
 async function choose(api: TuiPluginApi, methods: OAuthMethod[]) {
@@ -208,7 +212,7 @@ async function save(api: TuiPluginApi, prev?: Awaited<ReturnType<typeof readCurr
 
 async function code(api: TuiPluginApi, index: number, method: ProviderMethod, authz: OAuthAuthz) {
   const prev = await readCurrentAuth()
-  const ok = await new Promise<boolean>((resolve) => {
+  const ok = await new Promise<Awaited<ReturnType<typeof runOAuthCallback>>>((resolve) => {
     api.ui.dialog.replace(
       () => (
         <CodePrompt
@@ -216,16 +220,19 @@ async function code(api: TuiPluginApi, index: number, method: ProviderMethod, au
           title={method.label}
           authz={authz}
           onConfirm={async (value) => {
-            resolve(await runOAuthCallback(api.client.provider.oauth.callback, { providerID: "openai", method: index, code: value }))
+            resolve(await runOAuthCallback(
+              (input) => api.client.provider.oauth.callback(input),
+              { providerID: "openai", method: index, code: value },
+            ))
           }}
-          onCancel={() => resolve(false)}
+          onCancel={() => resolve({ ok: false, error: "Cancelled" })}
         />
       ),
-      () => resolve(false),
+      () => resolve({ ok: false, error: "Cancelled" }),
     )
   })
-  if (!ok) {
-    api.ui.toast({ variant: "error", message: "Login failed" })
+  if (!ok.ok) {
+    api.ui.toast({ variant: "error", message: `Login failed: ${detail(ok.error)}` })
     return false
   }
   return save(api, prev)
@@ -233,13 +240,16 @@ async function code(api: TuiPluginApi, index: number, method: ProviderMethod, au
 
 async function auto(api: TuiPluginApi, index: number, method: ProviderMethod, authz: OAuthAuthz) {
   const prev = await readCurrentAuth()
-  const ok = await new Promise<boolean>((resolve) => {
+  const ok = await new Promise<Awaited<ReturnType<typeof runOAuthCallback>>>((resolve) => {
     wait(api, method.label, authz, async () => {
-      resolve(await runOAuthCallback(api.client.provider.oauth.callback, { providerID: "openai", method: index }))
+      resolve(await runOAuthCallback(
+        (input) => api.client.provider.oauth.callback(input),
+        { providerID: "openai", method: index },
+      ))
     })
   })
-  if (!ok) {
-    api.ui.toast({ variant: "error", message: "Login failed" })
+  if (!ok.ok) {
+    api.ui.toast({ variant: "error", message: `Login failed: ${detail(ok.error)}` })
     return false
   }
   return save(api, prev)
@@ -267,23 +277,27 @@ export async function loginOpenAI(api: TuiPluginApi) {
     if (index == null) return false
     const picked = methods[index]
     const method = picked.method
-    const inputs = await prompts(api, method.label, method)
-    if (method.prompts?.length && !inputs) return false
+    let inputs: Record<string, string> | undefined
+    if (method.prompts?.length) {
+      const value = await prompts(api, method.label, method)
+      if (!value) return false
+      inputs = value
+    }
     const authz = unwrap(await api.client.provider.oauth.authorize({
       providerID: "openai",
       method: picked.index,
       inputs,
     }))
     if (!authz.ok) {
-      api.ui.toast({ variant: "error", message: "Login failed" })
+      api.ui.toast({ variant: "error", message: `Login failed: ${detail(authz.error)}` })
       return false
     }
     if (authz.data.method === "code") return code(api, picked.index, method, authz.data as OAuthAuthz)
     if (authz.data.method === "auto") return auto(api, picked.index, method, authz.data as OAuthAuthz)
     api.ui.toast({ variant: "error", message: "Unsupported auth method" })
     return false
-  } catch {
-    api.ui.toast({ variant: "error", message: "Login failed" })
+  } catch (err) {
+    api.ui.toast({ variant: "error", message: `Login failed: ${detail(err)}` })
     return false
   }
 }

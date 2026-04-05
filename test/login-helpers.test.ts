@@ -5,14 +5,14 @@ afterEach(() => {
   mock.restore()
 })
 
-test("runOAuthCallback returns false when callback rejects", async () => {
+test("runOAuthCallback returns error details when callback rejects", async () => {
   const callback = mock(async () => {
     throw new Error("boom")
   })
 
   const ok = await runOAuthCallback(callback, { providerID: "openai", method: 0 })
 
-  expect(ok).toBe(false)
+  expect(ok).toEqual({ ok: false, error: "boom" })
   expect(callback).toHaveBeenCalledTimes(1)
 })
 
