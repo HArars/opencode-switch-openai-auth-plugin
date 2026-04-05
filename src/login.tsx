@@ -3,7 +3,7 @@ import { TextAttributes } from "@opentui/core"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { onMount } from "solid-js"
 import { useKeyboard } from "@opentui/solid"
-import { clip, detail, runOAuthCallback, target } from "./login-helpers"
+import { clip, detail, explain, runOAuthCallback, target } from "./login-helpers"
 import type { OAuthAuthz, ProviderMethod, ProviderPrompt } from "./types"
 import { readCurrentAuth, upsertSavedAccount } from "./store"
 
@@ -232,7 +232,7 @@ async function code(api: TuiPluginApi, index: number, method: ProviderMethod, au
     )
   })
   if (!ok.ok) {
-    api.ui.toast({ variant: "error", message: `Login failed: ${detail(ok.error)}` })
+    api.ui.toast({ variant: "error", message: `Login failed: ${explain(ok.error)}` })
     return false
   }
   return save(api, prev)
@@ -249,7 +249,7 @@ async function auto(api: TuiPluginApi, index: number, method: ProviderMethod, au
     })
   })
   if (!ok.ok) {
-    api.ui.toast({ variant: "error", message: `Login failed: ${detail(ok.error)}` })
+    api.ui.toast({ variant: "error", message: `Login failed: ${explain(ok.error)}` })
     return false
   }
   return save(api, prev)
@@ -289,7 +289,7 @@ export async function loginOpenAI(api: TuiPluginApi) {
       inputs,
     }))
     if (!authz.ok) {
-      api.ui.toast({ variant: "error", message: `Login failed: ${detail(authz.error)}` })
+      api.ui.toast({ variant: "error", message: `Login failed: ${explain(authz.error)}` })
       return false
     }
     if (authz.data.method === "code") return code(api, picked.index, method, authz.data as OAuthAuthz)
@@ -297,7 +297,7 @@ export async function loginOpenAI(api: TuiPluginApi) {
     api.ui.toast({ variant: "error", message: "Unsupported auth method" })
     return false
   } catch (err) {
-    api.ui.toast({ variant: "error", message: `Login failed: ${detail(err)}` })
+    api.ui.toast({ variant: "error", message: `Login failed: ${explain(err)}` })
     return false
   }
 }

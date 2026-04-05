@@ -51,6 +51,18 @@ export function detail(err: unknown) {
   }
 }
 
+export function explain(err: unknown) {
+  const msg = detail(err)
+  const port = msg.match(/port\s+(\d+)\s+in use/i)?.[1]
+  if (port) {
+    return `Browser login could not start because local port ${port} is already in use. Close the other OpenCode login window or finish the other browser login first.`
+  }
+  if (msg.includes("this.client") || msg.includes("未定义的不是一个object")) {
+    return "Browser login callback failed inside OpenCode. Update the plugin to the latest version and retry." 
+  }
+  return msg
+}
+
 export async function runOAuthCallback(
   callback: (input: { providerID: "openai"; method: number; code?: string }) => Promise<{ error?: unknown }>,
   input: { providerID: "openai"; method: number; code?: string },
