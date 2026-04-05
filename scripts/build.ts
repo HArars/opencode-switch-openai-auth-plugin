@@ -7,6 +7,7 @@ const result = await Bun.build({
   outdir: "./dist",
   target: "bun",
   minify: false,
+  packages: "external",
   plugins: [createSolidTransformPlugin()],
   define: {
     "process.env.NODE_ENV": '"production"',
