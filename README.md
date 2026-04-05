@@ -2,56 +2,45 @@
 
 <img width="1107" height="525" alt="screenshot" src="https://github.com/user-attachments/assets/511a6118-e470-4955-b5a0-c8d9672d060b" />
 
-OpenCode TUI plugin for saving and switching between multiple OpenAI OAuth accounts with a single `/switch` command.
-
+OpenCode TUI plugin for switching between saved OpenAI OAuth accounts with a single `/switch` command.
 
 ## Features
 
-- one `/switch` command for login, switch, and remove
-- reuses the native OpenCode OpenAI OAuth flow
-- stores saved accounts in a plugin-owned JSON file
-- switches only `auth.json.openai` when you pick an account
-- keeps saved-account removal separate from active auth
-- supports multiple credentials for the same email by keying entries from the refresh token hash
+- one `/switch` command for login, switching, and removal
+- uses the native OpenCode OpenAI OAuth flow
+- supports multiple saved accounts
+- marks the current account in the picker
+- keeps saved-account removal separate from the active session
 
-## Behavior
+## Installation
 
-The `/switch` dialog can show:
+Install the plugin with the OpenCode plugin command:
 
-- `login`
-- saved accounts
-- `logout`
+```bash
+opencode plugin @harars/opencode-switch-openai-auth-plugin
+```
 
-Saved accounts are displayed with:
+## Usage
 
-- title: email, or account id, or generated fallback key
-- footer: `Current` for the active credential
+Run the command below in OpenCode:
 
-`login` behavior:
+```text
+/switch
+```
 
-- calls the native OpenCode provider auth flow for `openai`
-- rereads the active OpenAI auth after OAuth completes
-- saves that credential into `auth-switch/accounts.json`
+From there you can:
 
-`switch` behavior:
-
-- writes the selected saved credential into `auth.json.openai`
-- refreshes host auth state when runtime support is available
-
-`logout` behavior:
-
-- removes a saved credential from the plugin store
-- does not delete the currently active OpenAI auth from `auth.json`
+- sign in with another OpenAI account
+- switch to a saved account
+- remove a saved account
 
 ## Storage
 
-Plugin account store locations:
+Saved accounts are stored in a plugin-managed JSON file:
 
 - Linux: `~/.local/share/opencode/auth-switch/accounts.json`
 - macOS: `~/Library/Application Support/opencode/auth-switch/accounts.json`
 - Windows: `%LOCALAPPDATA%/opencode/auth-switch/accounts.json`
-
-`OPENCODE_TEST_HOME` is supported for tests.
 
 ## Local Development
 
@@ -68,47 +57,13 @@ bun test
 bunx tsc -p tsconfig.json --noEmit
 ```
 
-## Loading The Plugin
-
-Recommended install:
+Build the package output:
 
 ```bash
-opencode plugin @harars/opencode-switch-openai-auth-plugin
+bun run build
 ```
 
-When run inside a project, this installs the package and updates the workspace plugin config under `.opencode/`.
-
-Verified workspace config layout:
-
-` .opencode/opencode.json `
-
-```json
-{
-  "plugin": [
-    "@harars/opencode-switch-openai-auth-plugin"
-  ]
-}
-```
-
-` .opencode/tui.json `
-
-```json
-{
-  "$schema": "https://example.com/tui.json",
-  "plugin": [
-    "@harars/opencode-switch-openai-auth-plugin"
-  ],
-  "plugin_enabled": {
-    "harars.switch-auth": true
-  }
-}
-```
-
-This package should publish built `dist` files so OpenCode can load the plugin from the installed package.
-
-For local development, you can still point `tui.json` at a local file path.
-
-Example local file setup:
+For local development, point your workspace `tui.json` at the local source entry:
 
 ```json
 {
@@ -124,5 +79,4 @@ Example local file setup:
 ## Package
 
 - package name: `@harars/opencode-switch-openai-auth-plugin`
-- plugin id: `harars.switch-auth`
 - license: MIT
