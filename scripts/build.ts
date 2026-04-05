@@ -1,4 +1,4 @@
-import "@opentui/solid/runtime-plugin-support"
+import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 
 process.env.NODE_ENV = "production"
 
@@ -7,6 +7,7 @@ const result = await Bun.build({
   outdir: "./dist",
   target: "bun",
   minify: false,
+  plugins: [createSolidTransformPlugin()],
   define: {
     "process.env.NODE_ENV": '"production"',
   },

@@ -85,7 +85,7 @@ Example:
 }
 ```
 
-This package is published as source files so OpenCode can load the TUI entry directly from the installed package.
+This package should publish built `dist` files so OpenCode can load the plugin from the installed package.
 
 For local development, you can still point `tui.json` at a local file path.
 
