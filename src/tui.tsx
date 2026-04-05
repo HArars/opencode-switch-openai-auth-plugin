@@ -169,7 +169,7 @@ async function act(api: Parameters<TuiPlugin>[0], action: SwitchAction, list: St
   } catch {
     api.ui.toast({
       variant: "warning",
-      message: "Account file was switched, but session refresh failed",
+      message: "Account file was switched, but session refresh failed. Restart OpenCode to apply it.",
     })
   }
 }

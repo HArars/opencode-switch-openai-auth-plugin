@@ -2,6 +2,7 @@
 import { TextAttributes } from "@opentui/core"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { useKeyboard } from "@opentui/solid"
+import { clip, runOAuthCallback, target } from "./login-helpers"
 import type { OAuthAuthz, ProviderMethod, ProviderPrompt } from "./types"
 import { readCurrentAuth, upsertSavedAccount } from "./store"
 
@@ -22,47 +23,16 @@ function same(prev: Awaited<ReturnType<typeof readCurrentAuth>>, next: Awaited<R
   return prev.refresh === next.refresh
 }
 
-function clip(text: string) {
-  if (process.stdout.isTTY) {
-    const base64 = Buffer.from(text).toString("base64")
-    const osc52 = `\x1b]52;c;${base64}\x07`
-    const seq = process.env.TMUX || process.env.STY ? `\x1bPtmux;\x1b${osc52}\x1b\\` : osc52
-    process.stdout.write(seq)
-  }
-
-  const cmds = process.platform === "darwin"
-    ? [["pbcopy"]]
-    : process.platform === "win32"
-      ? [["clip"]]
-      : [["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]]
-
-  return Promise.any(
-    cmds.map(async (cmd) => {
-      const proc = Bun.spawn({
-        cmd,
-        stdin: "pipe",
-        stdout: "ignore",
-        stderr: "ignore",
-      })
-      await proc.stdin.write(new TextEncoder().encode(text))
-      proc.stdin.end()
-      const code = await proc.exited
-      if (code !== 0) throw new Error("copy failed")
-    }),
-  ).catch(() => {})
-}
-
-function target(authz: OAuthAuthz) {
-  return authz.instructions.match(/[A-Z0-9]{4}-[A-Z0-9]{4,5}/)?.[0] ?? authz.url
-}
-
 function bind(api: TuiPluginApi, authz: OAuthAuthz) {
   useKeyboard((evt) => {
     if (evt.name !== "c" || evt.ctrl || evt.meta) return
     evt.preventDefault()
     evt.stopPropagation()
     void clip(target(authz))
-      .then(() => api.ui.toast({ variant: "info", message: "Copied to clipboard" }))
+      .then((ok) => api.ui.toast({
+        variant: ok ? "info" : "warning",
+        message: ok ? "Copied to clipboard" : "Failed to copy to clipboard",
+      }))
   })
 }
 
@@ -220,8 +190,7 @@ async function code(api: TuiPluginApi, index: number, method: ProviderMethod, au
           title={method.label}
           authz={authz}
           onConfirm={async (value) => {
-            const res = await api.client.provider.oauth.callback({ providerID: "openai", method: index, code: value })
-            resolve(!res.error)
+            resolve(await runOAuthCallback(api.client.provider.oauth.callback, { providerID: "openai", method: index, code: value }))
           }}
           onCancel={() => resolve(false)}
         />
@@ -240,8 +209,7 @@ async function auto(api: TuiPluginApi, index: number, method: ProviderMethod, au
   const prev = await readCurrentAuth()
   const ok = await new Promise<boolean>((resolve) => {
     wait(api, method.label, authz, async () => {
-      const res = await api.client.provider.oauth.callback({ providerID: "openai", method: index })
-      resolve(!res.error)
+      resolve(await runOAuthCallback(api.client.provider.oauth.callback, { providerID: "openai", method: index }))
     })
   })
   if (!ok) {

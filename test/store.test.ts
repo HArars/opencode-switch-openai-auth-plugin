@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fallback } from "../src/parse"
+import { authPath, storePath } from "../src/paths"
 import { readCurrentAuth, readStore, switchAccount, upsertSavedAccount } from "../src/store"
 import type { OpenAIAuth } from "../src/types"
 
@@ -34,4 +35,25 @@ test("switchAccount rewrites current openai auth", async () => {
   await switchAccount(item.id)
   const cur = await readCurrentAuth()
   expect(cur?.refresh).toBe("refresh-token")
+})
+
+test("upsert does not overwrite malformed store", async () => {
+  const file = storePath()
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, "{not-json}\n")
+
+  await expect(upsertSavedAccount(auth)).rejects.toThrow("account store malformed")
+  const load = await readStore()
+  expect(load).toEqual({ ok: false, reason: "malformed" })
+  expect(await fs.readFile(file, "utf8")).toBe("{not-json}\n")
+})
+
+test("switchAccount does not overwrite malformed auth.json", async () => {
+  const item = await upsertSavedAccount(auth)
+  const file = authPath()
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, "{not-json}\n")
+
+  await expect(switchAccount(item.id)).rejects.toThrow("Expected '}'")
+  expect(await fs.readFile(file, "utf8")).toBe("{not-json}\n")
 })

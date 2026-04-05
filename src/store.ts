@@ -115,7 +115,12 @@ export async function writeCurrentOpenAI(auth: OpenAIAuth) {
 }
 
 export async function readStore(): Promise<StoreLoad> {
-  const raw = await readJson(storePath())
+  let raw: unknown
+  try {
+    raw = await readJson(storePath())
+  } catch {
+    return { ok: false, reason: "malformed" }
+  }
   if (raw === undefined) return { ok: false, reason: "missing" }
   const root = obj(raw)
   const map = obj(root?.openai)
@@ -177,6 +182,9 @@ function match(list: StoredAccount[], auth: OpenAIAuth) {
 export async function upsertSavedAccount(auth: OpenAIAuth) {
   const base = entryFromAuth(auth)
   const load = await readStore()
+  if (!load.ok && load.reason === "malformed") {
+    throw new Error("account store malformed")
+  }
   const store = load.ok ? load.store : { version: 1 as const, openai: {} }
   const list = Object.entries(store.openai)
   const match = list.find(([id, item]) => {
