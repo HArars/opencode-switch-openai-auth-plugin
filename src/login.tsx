@@ -11,6 +11,13 @@ type OAuthMethod = {
   method: ProviderMethod
 }
 
+type ClientResult<T> =
+  | T
+  | {
+      data?: T
+      error?: unknown
+    }
+
 function visible(prompt: ProviderPrompt, values: Record<string, string>) {
   if (!prompt.when) return true
   const cur = values[prompt.when.key]
@@ -21,6 +28,25 @@ function visible(prompt: ProviderPrompt, values: Record<string, string>) {
 function same(prev: Awaited<ReturnType<typeof readCurrentAuth>>, next: Awaited<ReturnType<typeof readCurrentAuth>>) {
   if (!prev || !next) return false
   return prev.refresh === next.refresh
+}
+
+function unwrap<T>(input: ClientResult<T>) {
+  if (!input || typeof input !== "object") {
+    return { ok: true as const, data: input as T }
+  }
+  if ("error" in input && input.error !== undefined) {
+    return { ok: false as const }
+  }
+  if ("data" in input) {
+    return input.data === undefined ? { ok: false as const } : { ok: true as const, data: input.data }
+  }
+  return { ok: true as const, data: input as T }
+}
+
+async function authMethods(api: TuiPluginApi) {
+  const res = unwrap(await api.client.provider.auth())
+  if (!res.ok) return []
+  return (res.data.openai ?? []) as ProviderMethod[]
 }
 
 function bind(api: TuiPluginApi, authz: OAuthAuthz) {
@@ -221,9 +247,7 @@ async function auto(api: TuiPluginApi, index: number, method: ProviderMethod, au
 
 export async function hasLogin(api: TuiPluginApi) {
   try {
-    const res = await api.client.provider.auth()
-    const methods = (res.data?.openai ?? []) as ProviderMethod[]
-    return methods.some((item) => item.type === "oauth")
+    return (await authMethods(api)).some((item) => item.type === "oauth")
   } catch {
     return false
   }
@@ -231,8 +255,8 @@ export async function hasLogin(api: TuiPluginApi) {
 
 export async function loginOpenAI(api: TuiPluginApi) {
   try {
-    const auth = await api.client.provider.auth()
-    const methods = ((auth.data?.openai ?? []) as ProviderMethod[])
+    const available = await authMethods(api)
+    const methods = available
       .map((method, index) => ({ method, index }))
       .filter((item) => item.method.type === "oauth")
     if (!methods.length) {
@@ -245,12 +269,12 @@ export async function loginOpenAI(api: TuiPluginApi) {
     const method = picked.method
     const inputs = await prompts(api, method.label, method)
     if (method.prompts?.length && !inputs) return false
-    const authz = await api.client.provider.oauth.authorize({
+    const authz = unwrap(await api.client.provider.oauth.authorize({
       providerID: "openai",
       method: picked.index,
       inputs,
-    })
-    if (authz.error || !authz.data) {
+    }))
+    if (!authz.ok) {
       api.ui.toast({ variant: "error", message: "Login failed" })
       return false
     }
