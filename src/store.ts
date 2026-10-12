@@ -1,252 +1,172 @@
-import fs from "node:fs/promises"
 import path from "node:path"
-import type { OpenAIAuth, StoreEntry, StoreFile, StoreLoad, StoredAccount } from "./types"
-import { authPath, storeDir, storePath } from "./paths"
-import { clean, entryFromAuth, extractAccountId, extractEmail, fallback } from "./parse"
+import { randomUUID } from "node:crypto"
+import { atomicWrite, readPrivateFile, withStoreLock } from "./files"
+import { clean, entryFromAuth, record, sameAccount, text, timestamp, validAuth } from "./parse"
+import { legacyStorePaths, storeDir } from "./paths"
+import type { AuthGateway, OpenAIAuth, StoreEntry, StoreFile, StoredAccount } from "./types"
 
-function obj(v: unknown) {
-  return v && typeof v === "object" ? (v as Record<string, unknown>) : undefined
+export class StoreError extends Error {
+  constructor(message: string) { super(message); this.name = "StoreError" }
 }
-
-function text(v: unknown) {
-  return typeof v === "string" && v.trim() ? v : undefined
+function validEntry(id: string, value: unknown): value is StoreEntry {
+  const item = record(value)
+  const who = record(item?.identity)
+  return Boolean(item && item.key === id && who && text(who.issuer)
+    && [who.userId, who.accountId, who.email, item.email, item.accountId, item.plan]
+      .every(field => field === undefined || Boolean(text(field)))
+    && timestamp(item.savedAt) && timestamp(item.updatedAt)
+    && (item.lastUsedAt === undefined || timestamp(item.lastUsedAt)) && validAuth(item.auth))
 }
-
-function num(v: unknown) {
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined
-}
-
-export function validAuth(v: unknown): v is OpenAIAuth {
-  const item = obj(v)
-  if (!item) return false
-  if (item.type !== "oauth") return false
-  if (!text(item.refresh) || !text(item.access) || num(item.expires) === undefined) return false
-  if (item.accountId !== undefined && !text(item.accountId)) return false
-  if (item.enterpriseUrl !== undefined && !text(item.enterpriseUrl)) return false
-  return true
-}
-
-function validEntry(id: string, v: unknown): v is StoreEntry {
-  const item = obj(v)
-  if (!item || item.key !== id) return false
-  if (item.email !== undefined && !text(item.email)) return false
-  if (item.accountId !== undefined && !text(item.accountId)) return false
-  if (item.plan !== undefined && !text(item.plan)) return false
-  if (num(item.savedAt) === undefined) return false
-  if (item.lastUsedAt !== undefined && num(item.lastUsedAt) === undefined) return false
-  return validAuth(item.auth)
-}
-
-async function readJson(file: string) {
-  const data = Bun.file(file)
-  if (!(await data.exists())) return
-  const raw = (await data.text()).trim()
-  if (!raw) return
-  return JSON.parse(raw) as unknown
-}
-
-async function writeJson(file: string, value: unknown) {
-  await fs.mkdir(storeDir(), { recursive: true })
-  await Bun.write(file, `${JSON.stringify(value, null, 2)}\n`)
-}
-
-function hydrateAccount(id: string, item: StoreEntry): StoredAccount {
-  return {
-    ...item,
-    id,
-    email: item.email || extractEmail(item.auth),
-    accountId: item.accountId || extractAccountId(item.auth),
-  }
-}
-
-function normalizeEntries(entries: Record<string, unknown>) {
-  const normalized: Record<string, StoreEntry> = {}
-  let changed = false
-
-  for (const [id, value] of Object.entries(entries)) {
-    if (!validEntry(id, value)) {
-      const item = obj(value)
-      if (!item || !validAuth(item.auth)) {
-        changed = true
-        continue
-      }
-      const auth = clean(item.auth)
-      const nextKey = fallback(auth.refresh)
-      normalized[nextKey] = {
-        key: nextKey,
-        email: text(item.email) || extractEmail(auth),
-        accountId: text(item.accountId) || extractAccountId(auth),
-        plan: text(item.plan),
-        savedAt: num(item.savedAt) ?? Date.now(),
-        ...(num(item.lastUsedAt) !== undefined ? { lastUsedAt: num(item.lastUsedAt) } : {}),
-        auth,
-      }
-      changed = true
-      continue
-    }
-
-    const nextKey = fallback(value.auth.refresh)
-    if (nextKey !== id || value.key !== nextKey) changed = true
-    normalized[nextKey] = {
-      ...value,
-      key: nextKey,
-      auth: clean(value.auth),
-    }
-  }
-
-  return { normalized, changed }
-}
-
-export async function readCurrentAuth() {
-  const raw = await readJson(authPath())
-  const data = obj(raw)
-  if (!data) return
-  const auth = data.openai
-  if (!validAuth(auth)) return
-  return clean(auth)
-}
-
-export async function writeCurrentOpenAI(auth: OpenAIAuth) {
-  const raw = (await readJson(authPath())) ?? {}
-  const next = obj(raw) ?? {}
-  next.openai = clean(auth)
-  await fs.mkdir(path.dirname(authPath()), { recursive: true })
-  await Bun.write(authPath(), `${JSON.stringify(next, null, 2)}\n`)
-}
-
-export async function readStore(): Promise<StoreLoad> {
-  let raw: unknown
-  try {
-    raw = await readJson(storePath())
-  } catch {
-    return { ok: false, reason: "malformed" }
-  }
-  if (raw === undefined) return { ok: false, reason: "missing" }
-  const root = obj(raw)
-  const map = obj(root?.openai)
-  if (!root || root.version !== 1 || !map) return { ok: false, reason: "malformed" }
-  const { normalized, changed } = normalizeEntries(map)
-  if (changed) {
-    await writeStore({ version: 1, openai: normalized })
-  }
-  return {
-    ok: true,
-    store: {
-      version: 1,
-      openai: normalized,
-    },
-  }
-}
-
-export async function writeStore(store: StoreFile) {
-  await writeJson(storePath(), store)
-}
-
-export async function readAllAccounts() {
-  const load = await readStore()
-  if (!load.ok) return load
-  return {
-    ok: true as const,
-    accounts: Object.entries(load.store.openai)
-      .filter(([id, item]) => validEntry(id, item))
-      .map(([id, item]) => hydrateAccount(id, item)),
-  }
-}
-
-export async function pruneInvalidAccounts() {
-  const load = await readStore()
-  if (!load.ok) return load
-  const next = Object.fromEntries(Object.entries(load.store.openai).filter(([id, item]) => validEntry(id, item)))
-  if (Object.keys(next).length !== Object.keys(load.store.openai).length) {
-    await writeStore({ version: 1, openai: next })
-  }
-  return {
-    ok: true as const,
-    accounts: Object.entries(next).map(([id, item]) => hydrateAccount(id, item)),
-  }
-}
-
-export async function currentAccountId() {
-  const auth = await readCurrentAuth()
-  if (!auth) return
-  return fallback(auth.refresh)
-}
-
-function match(list: StoredAccount[], auth: OpenAIAuth) {
-  return list.find((item) => {
-    if (item.auth.refresh === auth.refresh) return true
-    return item.id === fallback(auth.refresh)
-  })?.id
-}
-
-export async function upsertSavedAccount(auth: OpenAIAuth) {
+function upsert(store: StoreFile, auth: OpenAIAuth, create: boolean) {
   const base = entryFromAuth(auth)
-  const load = await readStore()
-  if (!load.ok && load.reason === "malformed") {
-    throw new Error("account store malformed")
+  const matches = Object.values(store.openai).filter(item => sameAccount(item, base))
+  const previous = matches[0]
+  if (!previous && !create) return undefined
+  const next = previous ? {
+    ...base, key: previous.key,
+    identity: { ...base.identity, userId: base.identity.userId ?? previous.identity.userId,
+      accountId: base.identity.accountId ?? previous.identity.accountId,
+      email: base.identity.email ?? previous.identity.email },
+    email: base.email ?? previous.email, accountId: base.accountId ?? previous.accountId,
+    plan: base.plan ?? previous.plan,
+    savedAt: Math.min(...matches.map(item => item.savedAt)),
+    lastUsedAt: Math.max(...matches.map(item => item.lastUsedAt ?? 0)) || undefined,
+  } : base
+  for (const match of matches) delete store.openai[match.key]
+  store.openai[next.key] = next
+  return next.key
+}
+function migrate(map: Record<string, unknown>) {
+  const store: StoreFile = { version: 2, openai: {} }
+  let skipped = 0
+  // Expiry is a freshness hint only for choosing between duplicate legacy snapshots.
+  const entries = Object.values(map).map(record).filter((item): item is Record<string, unknown> => Boolean(item))
+    .sort((a, b) => {
+      const left = record(a.auth)?.expires
+      const right = record(b.auth)?.expires
+      return (timestamp(left) ? left : 0) - (timestamp(right) ? right : 0)
+    })
+  for (const item of entries) {
+    if (!validAuth(item.auth)) { skipped += 1; continue }
+    const id = upsert(store, item.auth, true)!
+    const entry = store.openai[id]!
+    entry.email ??= text(item.email)
+    entry.accountId ??= text(item.accountId)
+    entry.plan ??= text(item.plan)
+    entry.identity.email ??= entry.email?.toLowerCase()
+    entry.identity.accountId ??= entry.accountId
+    entry.savedAt = Math.min(entry.savedAt, timestamp(item.savedAt) ? item.savedAt : entry.savedAt)
+    entry.lastUsedAt = Math.max(entry.lastUsedAt ?? 0, timestamp(item.lastUsedAt) ? item.lastUsedAt : 0) || undefined
   }
-  const store = load.ok ? load.store : { version: 1 as const, openai: {} }
-  const list = Object.entries(store.openai)
-  const match = list.find(([id, item]) => {
-    if (!validEntry(id, item)) return false
-    return item.auth.refresh === auth.refresh || id === base.key
-  })
-  const prev = match?.[1]
-  const next: StoreEntry = {
-    ...base,
-    savedAt: prev?.savedAt ?? base.savedAt,
-    lastUsedAt: prev?.lastUsedAt,
+  return { store, skipped: skipped + Object.values(map).filter(item => !record(item)).length }
+}
+export class AccountStore {
+  readonly file: string
+  constructor(readonly directory = storeDir(), readonly legacyFiles: string[] = legacyStorePaths()) {
+    this.file = path.join(directory, "accounts.json")
   }
-  const out = Object.fromEntries(
-    list.filter(([id]) => id !== match?.[0]).filter(([id, item]) => validEntry(id, item)),
-  ) as Record<string, StoreEntry>
-  out[next.key] = next
-  await writeStore({ version: 1, openai: out })
-  return { ...next, id: next.key }
-}
-
-function sort(list: StoredAccount[], cur?: string) {
-  return [...list].sort((a, b) => {
-    const ac = a.id === cur ? 1 : 0
-    const bc = b.id === cur ? 1 : 0
-    if (ac !== bc) return bc - ac
-    if ((b.lastUsedAt ?? 0) !== (a.lastUsedAt ?? 0)) return (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0)
-    if (b.savedAt !== a.savedAt) return b.savedAt - a.savedAt
-    return (a.email || a.accountId || a.id).localeCompare(b.email || b.accountId || b.id)
-  })
-}
-
-export async function listAccounts() {
-  const load = await pruneInvalidAccounts()
-  if (!load.ok) return load
-  const auth = await readCurrentAuth()
-  const cur = auth ? match(load.accounts, auth) ?? fallback(auth.refresh) : undefined
-  return { ok: true as const, accounts: sort(load.accounts, cur), current: cur }
-}
-
-export async function switchAccount(id: string) {
-  const load = await readStore()
-  if (!load.ok) throw new Error("account store unavailable")
-  const item = load.store.openai[id]
-  if (!validEntry(id, item)) throw new Error("saved account not found")
-  await writeCurrentOpenAI(item.auth)
-  await writeStore({
-    version: 1,
-    openai: {
-      ...load.store.openai,
-      [id]: {
-        ...item,
-        lastUsedAt: Date.now(),
-      },
-    },
-  })
-}
-
-export async function deleteSavedAccount(id: string) {
-  const load = await readStore()
-  if (!load.ok) throw new Error("account store unavailable")
-  if (!(id in load.store.openai)) throw new Error("saved account not found")
-  const next = { ...load.store.openai }
-  delete next[id]
-  await writeStore({ version: 1, openai: next })
+  private async load(assertOwned: () => void): Promise<{ store: StoreFile; warnings: string[] }> {
+    let source = this.file
+    let raw = await readPrivateFile(source)
+    if (raw === undefined) {
+      const found: Array<{ file: string; raw: string }> = []
+      for (const file of this.legacyFiles) {
+        const content = await readPrivateFile(file)
+        if (content !== undefined) found.push({ file, raw: content })
+      }
+      if (found.length > 1) throw new StoreError("Multiple legacy account stores found; choose one to migrate manually")
+      if (found[0]) { source = found[0].file; raw = found[0].raw }
+    }
+    if (raw === undefined) return { store: { version: 2, openai: {} }, warnings: [] }
+    let root: Record<string, unknown> | undefined
+    try { root = record(JSON.parse(raw)) } catch { /* Preserve the original bytes. */ }
+    const map = record(root?.openai)
+    if (!root || !map || (root.version !== 1 && root.version !== 2)) {
+      throw new StoreError("Account store is malformed or has an unsupported version; the original file was preserved")
+    }
+    if (root.version === 2) {
+      if (!Object.entries(map).every(([id, item]) => validEntry(id, item))) {
+        throw new StoreError("Account store contains invalid records; the original file was preserved")
+      }
+      const store = root as unknown as StoreFile
+      if (source !== this.file) {
+        assertOwned()
+        await atomicWrite(path.join(this.directory, `accounts.import-backup.${randomUUID()}.json`), raw)
+        await this.persist(store, assertOwned)
+      }
+      return { store, warnings: [] }
+    }
+    const migrated = migrate(map)
+    assertOwned()
+    const backup = `accounts.v1-backup.${randomUUID()}.json`
+    await atomicWrite(path.join(this.directory, backup), raw)
+    await this.persist(migrated.store, assertOwned)
+    return { store: migrated.store, warnings: [
+      `Saved accounts upgraded to v2. Original data backed up as ${backup}.`,
+      ...(migrated.skipped ? [`${migrated.skipped} invalid legacy record(s) were retained in the backup.`] : []),
+    ] }
+  }
+  private async persist(store: StoreFile, assertOwned: () => void) {
+    assertOwned()
+    await atomicWrite(this.file, `${JSON.stringify(store, null, 2)}\n`)
+  }
+  async list(active?: OpenAIAuth | (() => Promise<OpenAIAuth | undefined>)) {
+    return withStoreLock(this.directory, async assertOwned => {
+      const { store, warnings } = await this.load(assertOwned)
+      const currentAuth = typeof active === "function" ? await active() : active
+      // Update only an existing saved account. Removed records stay removed.
+      const current = currentAuth ? upsert(store, currentAuth, false) : undefined
+      if (current) await this.persist(store, assertOwned)
+      const accounts: StoredAccount[] = Object.values(store.openai).map(item => ({ ...item, id: item.key }))
+      accounts.sort((a, b) => Number(b.id === current) - Number(a.id === current)
+        || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || b.savedAt - a.savedAt
+        || (a.email ?? a.id).localeCompare(b.email ?? b.id))
+      return { accounts, current, warnings }
+    })
+  }
+  async save(auth: OpenAIAuth) {
+    clean(auth)
+    return withStoreLock(this.directory, async assertOwned => {
+      const { store } = await this.load(assertOwned)
+      const id = upsert(store, auth, true)!
+      await this.persist(store, assertOwned)
+      return { ...store.openai[id]!, id }
+    })
+  }
+  async remove(id: string) {
+    return withStoreLock(this.directory, async assertOwned => {
+      const { store } = await this.load(assertOwned)
+      if (!Object.hasOwn(store.openai, id)) throw new StoreError("Saved account no longer exists")
+      delete store.openai[id]
+      await this.persist(store, assertOwned)
+    })
+  }
+  async switch(id: string, gateway: AuthGateway, signal?: AbortSignal) {
+    signal?.throwIfAborted()
+    await gateway.assertAvailable()
+    let applied = false
+    try {
+      return await withStoreLock(this.directory, async assertOwned => {
+        signal?.throwIfAborted()
+        const { store } = await this.load(assertOwned)
+        if (!Object.hasOwn(store.openai, id)) throw new StoreError("Saved account no longer exists")
+        const current = await gateway.read()
+        signal?.throwIfAborted()
+        if (current && upsert(store, current, false)) await this.persist(store, assertOwned)
+        const target = store.openai[id]
+        if (!target) throw new StoreError("Account list changed; reopen /switch")
+        assertOwned()
+        signal?.throwIfAborted()
+        await gateway.set(clean(target.auth), signal)
+        applied = true
+        target.lastUsedAt = Date.now()
+        await this.persist(store, assertOwned)
+        return { historySaved: true }
+      })
+    } catch (error) {
+      // The native auth write may have succeeded before persistence/lock release failed.
+      if (applied) return { historySaved: false }
+      throw error
+    }
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@harars/opencode-switch-openai-auth-plugin",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "OpenCode TUI plugin for switching saved OpenAI OAuth accounts",
   "repository": {
     "type": "git",
@@ -27,32 +27,47 @@
     "./tui": "./dist/tui.js"
   },
   "engines": {
-    "opencode": "^1.0.0"
+    "opencode": ">=1.18.33 <1.20.0",
+    "bun": ">=1.3.11"
   },
-  "oc-plugin": [["tui", {
-    "compact": true
-  }]],
+  "oc-plugin": [
+    "tui"
+  ],
   "scripts": {
     "build": "bun ./scripts/build.ts",
     "prepack": "bun run build",
-    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
-    "test": "bun test"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "test:live": "bun ./scripts/smoke-tui.ts",
+    "check": "bun run typecheck && bun test && bun run build"
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "DESIGN.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "latest_source_review_2026-10-12.md",
+    "upstream-source-manifest.json"
   ],
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.0.0"
+    "@opencode-ai/plugin": ">=1.18.33 <1.20.0",
+    "@opentui/core": ">=0.4.5 <0.5.0",
+    "@opentui/solid": ">=0.4.5 <0.5.0",
+    "solid-js": "1.9.12"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.93",
-    "@opentui/solid": "^0.1.93",
-    "solid-js": "^1.9.12"
+    "proper-lockfile": "^4.1.2",
+    "xdg-basedir": "5.1.0"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "1.19.0",
+    "@opentui/core": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@types/proper-lockfile": "^4.1.4",
     "bun-types": "^1.3.11",
+    "solid-js": "1.9.12",
     "typescript": "^6.0.2"
   }
 }

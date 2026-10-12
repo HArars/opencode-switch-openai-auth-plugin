@@ -1,27 +1,16 @@
 import type { StoredAccount } from "./types"
 
-function short(id?: string) {
-  if (!id) return
-  if (id.length <= 12) return id
-  return `${id.slice(0, 6)}...${id.slice(-4)}`
+function short(value: string) {
+  return value.length <= 16 ? value : value.slice(0, 8) + "..." + value.slice(-4)
 }
-
 export function accountTitle(account: StoredAccount) {
-  return account.email || account.accountId || account.id
+  return account.email ?? account.identity.userId ?? account.accountId ?? "Account " + short(account.id)
 }
-
-export function accountDescription(account: StoredAccount, current: boolean) {
-  return short(account.accountId)
+export function accountDescription(account: StoredAccount) {
+  return [
+    account.plan,
+    account.accountId ? "workspace " + short(account.accountId) : undefined,
+    account.auth.expires <= Date.now() ? "Access token expired; OpenCode refreshes on use" : undefined,
+  ].filter(Boolean).join(" · ")
 }
-
-export function accountFooter(current: boolean) {
-  return current ? "Current" : undefined
-}
-
-export function loginTitle() {
-  return "login"
-}
-
-export function logoutTitle(has: boolean) {
-  return has ? "logout" : "logout unavailable"
-}
+export function accountFooter(current: boolean) { return current ? "Current" : undefined }

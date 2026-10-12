@@ -1,43 +1,21 @@
 import { afterEach, expect, mock, spyOn, test } from "bun:test"
-import { clip, runOAuthCallback } from "../src/login-helpers"
+import { clip, target } from "../src/login-helpers"
 
-afterEach(() => {
-  mock.restore()
+afterEach(() => mock.restore())
+test("device authorization copies the code; browser authorization copies the URL", () => {
+  expect(target({ url: "https://example.test/login", method: "auto", instructions: "Use code ABCD-12345" })).toBe("ABCD-12345")
+  expect(target({ url: "https://example.test/login", method: "auto", instructions: "Open your browser" })).toBe("https://example.test/login")
 })
-
-test("runOAuthCallback returns error details when callback rejects", async () => {
-  const callback = mock(async () => {
-    throw new Error("boom")
-  })
-
-  const ok = await runOAuthCallback(callback, { providerID: "openai", method: 0 })
-
-  expect(ok).toEqual({ ok: false, error: "boom" })
-  expect(callback).toHaveBeenCalledTimes(1)
-})
-
-test("clip returns false when all copy methods fail without tty", async () => {
+test("clipboard fallback is sequential and stops after the first success", async () => {
   const tty = process.stdout.isTTY
-  Object.defineProperty(process.stdout, "isTTY", {
-    value: false,
-    configurable: true,
-  })
-
+  Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true })
+  let running = 0
   const spawn = spyOn(Bun, "spawn").mockImplementation(() => ({
-    stdin: {
-      write: async () => {},
-      end: () => {},
-    },
-    exited: Promise.resolve(1),
+    stdin: { write() {}, end() {} },
+    exited: Promise.resolve(++running === 1 ? 1 : 0), kill() {},
   }) as never)
-
-  const ok = await clip("copy me")
-
-  expect(ok).toBe(false)
-  expect(spawn).toHaveBeenCalled()
-
-  Object.defineProperty(process.stdout, "isTTY", {
-    value: tty,
-    configurable: true,
-  })
+  try {
+    expect(await clip("copy me")).toBe(process.platform === "linux")
+    expect(spawn).toHaveBeenCalledTimes(process.platform === "linux" ? 2 : 1)
+  } finally { Object.defineProperty(process.stdout, "isTTY", { value: tty, configurable: true }) }
 })

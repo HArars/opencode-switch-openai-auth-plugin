@@ -1,5 +1,7 @@
 node_modules/
 dist/
+artifacts/
+.build-*/
 *.log
 tmp/
 .DS_Store
@@ -7,3 +9,16 @@ tmp/
 .vscode/
 switch_auth_*.md
 opencode-auth-switch
+
+# Local credentials and configuration; never publish these.
+.env
+.env.*
+!.env.example
+.npmrc
+auth.json
+auth.json.*
+accounts.json
+accounts.json.*
+auth-switch/
+*.pem
+*.key

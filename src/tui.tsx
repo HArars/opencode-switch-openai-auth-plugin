@@ -1,194 +1,148 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiCommand, TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
-import { accountDescription, accountFooter, accountTitle, loginTitle, logoutTitle } from "./format"
-import { hasLogin, loginOpenAI } from "./login"
-import { deleteSavedAccount, listAccounts, switchAccount } from "./store"
-import type { StoredAccount, SwitchAction, SwitchOption } from "./types"
+import type { TuiPlugin, TuiPluginApi, TuiPluginModule, TuiDialogSelectOption } from "@opencode-ai/plugin/tui"
+import { accountDescription, accountFooter, accountTitle } from "./format"
+import { authMethods, loginOpenAI } from "./login-flow"
+import { clearOwnedDialog, loginDialogs, replaceDialog, requestDialog } from "./login"
+import { data, LocalAuthGateway, HostError } from "./host"
+import { Operation } from "./operation"
+import { AccountStore, StoreError } from "./store"
+import type { AuthGateway, StoredAccount, SwitchAction } from "./types"
 
-let seq = 0
-
-function frame(text: string) {
-  return (
-    <box paddingLeft={2} paddingRight={2} paddingTop={2} paddingBottom={2}>
-      <text>{text}</text>
-    </box>
-  )
+function frame(message: string) {
+  return <box padding={2}><text>{message}</text></box>
 }
-
-async function pick(api: Parameters<TuiPlugin>[0], list: StoredAccount[]) {
-  return await new Promise<string | null>((resolve) => {
-    api.ui.dialog.replace(
-      () => (
-        <api.ui.DialogSelect
-          title="Remove saved account"
-          options={list.map((item) => ({
-            title: accountTitle(item),
-            value: item.id,
-            category: accountDescription(item, false),
-          }))}
-          onSelect={(item) => resolve(item.value)}
-        />
-      ),
-      () => resolve(null),
-    )
-  })
+function errorMessage(error: unknown) {
+  // Never show serialized SDK requests, responses, headers, or token payloads.
+  return error instanceof StoreError || error instanceof HostError
+    ? error.message : "Could not complete the account operation. Check local storage access and retry."
 }
-
-async function confirm(api: Parameters<TuiPlugin>[0], title: string, message: string) {
-  return await new Promise<boolean>((resolve) => {
-    api.ui.dialog.replace(
-      () => (
-        <api.ui.DialogConfirm
-          title={title}
-          message={message}
-          onConfirm={() => resolve(true)}
-          onCancel={() => resolve(false)}
-        />
-      ),
-      () => resolve(false),
-    )
-  })
-}
-
-async function remove(api: Parameters<TuiPlugin>[0], list: StoredAccount[]) {
-  const id = await pick(api, list)
-  if (!id) return
-  const item = list.find((row) => row.id === id)
-  if (!item) return
-  const ok = await confirm(api, "Remove saved account", `Remove ${accountTitle(item)} from saved accounts?`)
-  if (!ok) return
-  try {
-    await deleteSavedAccount(id)
-    api.ui.toast({ variant: "success", message: "Saved account removed" })
-  } catch {
-    api.ui.toast({ variant: "error", message: "Failed to remove saved account" })
-  }
-}
-
-function options(list: StoredAccount[], current: string | undefined, canLogin: boolean): SwitchOption[] {
-  const rows = list.map((item) => ({
-    title: accountTitle(item),
-    value: { type: "account", id: item.id } as SwitchAction,
-    description: accountDescription(item, item.id === current),
-    footer: accountFooter(item.id === current),
-    category: "Accounts",
-  }))
+export function switchOptions(accounts: StoredAccount[], current?: string, canLogin = false): TuiDialogSelectOption<SwitchAction>[] {
   return [
-    ...(canLogin ? [{ title: loginTitle(), value: { type: "login" } as SwitchAction }] : []),
-    ...rows,
-    ...(list.length
-      ? [
-          {
-            title: logoutTitle(true),
-            value: { type: "logout" } as SwitchAction,
-            description: "Remove a saved account",
-            category: "Actions",
-          },
-        ]
-      : []),
+    ...(canLogin ? [{ title: "Sign in with OpenAI", value: { type: "login" } as SwitchAction, category: "Actions" }] : []),
+    ...accounts.map(account => ({
+      title: accountTitle(account), value: { type: "account", id: account.id } as SwitchAction,
+      description: accountDescription(account), footer: accountFooter(account.id === current), category: "Accounts",
+    })),
+    ...(accounts.length ? [{
+      title: "Remove saved account", value: { type: "remove" } as SwitchAction,
+      description: "Keeps the active OpenCode login", category: "Actions",
+    }] : []),
   ]
 }
-
-async function open(api: Parameters<TuiPlugin>[0]) {
-  const id = ++seq
-  api.ui.dialog.setSize("large")
-  api.ui.dialog.replace(() => frame("Loading accounts..."))
-
-  const [store, canLogin] = await Promise.all([listAccounts(), hasLogin(api)])
-  if (id !== seq) return
-
-  if (!store.ok && store.reason === "malformed") {
-    api.ui.toast({ variant: "error", message: "Failed to load account store" })
-  }
-
-  const accounts = store.ok ? store.accounts : []
-  const current = store.ok ? store.current : undefined
-  const rows = options(accounts, current, canLogin)
-
-  if (!rows.length) {
-    api.ui.dialog.replace(() => frame("OpenAI login unavailable and no saved accounts found"))
-    return
-  }
-
-  if (!accounts.length && canLogin) {
-    api.ui.dialog.replace(() => (
-      <api.ui.DialogSelect
-        title="Switch OpenAI account"
-        options={rows}
-        placeholder="Search"
-        onSelect={(item) => void act(api, item.value, accounts)}
-      />
-    ))
-    return
-  }
-
-  api.ui.dialog.replace(() => (
-    <api.ui.DialogSelect
-      title="Switch OpenAI account"
-      options={rows}
-      placeholder="Search"
-      current={current ? ({ type: "account", id: current } as SwitchAction) : undefined}
-      onSelect={(item) => void act(api, item.value, accounts)}
-    />
-  ))
+async function removeAccount(api: TuiPluginApi, operation: Operation, store: AccountStore, accounts: StoredAccount[]) {
+  const id = await requestDialog(api, operation, finish => <api.ui.DialogSelect
+    title="Remove saved account"
+    options={accounts.map(account => ({ title: accountTitle(account), value: account.id, description: accountDescription(account) }))}
+    onSelect={item => finish(item.value)}
+  />)
+  operation.check()
+  const target = accounts.find(account => account.id === id)
+  if (!target) return
+  const confirmed = await requestDialog(api, operation, finish => <api.ui.DialogConfirm
+    title="Remove saved account"
+    message={"Remove " + accountTitle(target) + " from saved accounts? The current login will remain active."}
+    onConfirm={() => finish(true)} onCancel={() => finish(false)}
+  />)
+  operation.check()
+  if (!confirmed) return
+  await store.remove(target.id)
+  if (operation.active) api.ui.toast({ variant: "success", message: "Saved account removed" })
 }
-
-async function act(api: Parameters<TuiPlugin>[0], action: SwitchAction, list: StoredAccount[]) {
-  if (action.type === "login") {
-    const ok = await loginOpenAI(api)
-    if (ok) {
-      api.ui.toast({ variant: "success", message: "Account saved" })
-      await open(api)
-    }
-    return
+async function assertIdle(api: TuiPluginApi, operation: Operation) {
+  const route = api.route.current
+  if (route.name === "session" && typeof route.params?.sessionID === "string") {
+    const status = api.state.session.status(route.params.sessionID)
+    if (status && status.type !== "idle") throw new HostError("Wait for all responses in this OpenCode instance to finish before changing accounts.")
   }
-  if (action.type === "logout") {
-    await remove(api, list)
-    await open(api)
-    return
-  }
-  try {
-    await switchAccount(action.id)
-  } catch {
-    api.ui.toast({ variant: "error", message: "Failed to switch account" })
-    return
-  }
-
-  try {
-    const client = api.client as typeof api.client & {
-      sync?: { bootstrap?: () => Promise<void> }
-    }
-    if (typeof api.client.instance.dispose === "function") {
-      await api.client.instance.dispose()
-    }
-    if (typeof client.sync?.bootstrap === "function") {
-      await client.sync.bootstrap()
-    }
-    api.ui.toast({ variant: "success", message: "Switched OpenAI account" })
-    api.ui.dialog.clear()
-  } catch {
-    api.ui.toast({
-      variant: "warning",
-      message: "Account file was switched, but session refresh failed. Restart OpenCode to apply it.",
-    })
+  // The home screen and other sessions can hide an in-flight request using these credentials.
+  const statuses = data(await api.client.session.status({}, {
+    signal: AbortSignal.any([operation.signal, AbortSignal.timeout(8_000)]),
+  }), "Could not verify running sessions. Retry before changing accounts.")
+  operation.check()
+  if (Object.values(statuses).some(status => status.type !== "idle")) {
+    throw new HostError("Wait for all responses in this OpenCode instance to finish before changing accounts.")
   }
 }
-
-const tui: TuiPlugin = async (api) => {
-  api.command.register(() => [
-    {
-      title: "Switch OpenAI account",
-      value: "openai.switch",
-      description: "Login, switch, or remove saved OpenAI accounts",
-      slash: { name: "switch" },
-      onSelect: () => {
-        void open(api)
-      },
-    } satisfies TuiCommand,
-  ])
+export async function registerSwitcher(api: TuiPluginApi, store: AccountStore, gateway: AuthGateway) {
+  let operation: Operation | undefined
+  async function open() {
+    if (operation?.active) {
+      api.ui.toast({ variant: "info", message: "Finish or close the current account dialog first" })
+      return
+    }
+    const currentOperation = new Operation(api.lifecycle.signal)
+    operation = currentOperation
+    try {
+      api.ui.dialog.setSize("large")
+      const abort = () => clearOwnedDialog(api, currentOperation)
+      currentOperation.signal.addEventListener("abort", abort, { once: true })
+      try {
+        while (currentOperation.active) {
+          replaceDialog(api, currentOperation, () => frame("Loading accounts..."))
+          await gateway.assertAvailable()
+          currentOperation.check()
+          const [listing, methods] = await Promise.all([
+            store.list(() => gateway.read()),
+            authMethods(api.client, currentOperation.signal).catch(() => undefined),
+          ])
+          currentOperation.check()
+          if (!methods) api.ui.toast({ variant: "warning", message: "Could not load login methods. Saved accounts are still available." })
+          for (const warning of listing.warnings) api.ui.toast({ variant: "info", message: warning, duration: 8_000 })
+          const rows = switchOptions(listing.accounts, listing.current, methods?.some(method => method.type === "oauth"))
+          if (!rows.length) {
+            api.ui.toast({ variant: "info", message: "No saved accounts and no OpenAI OAuth login methods are available." })
+            break
+          }
+          const selected = await requestDialog<SwitchAction>(api, currentOperation, finish => <api.ui.DialogSelect
+            title="Switch OpenAI account" placeholder="Search accounts" options={rows}
+            current={listing.current ? { type: "account", id: listing.current } : undefined}
+            onSelect={item => finish(item.value)}
+          />)
+          currentOperation.check()
+          if (!selected) break
+          if (selected.type === "remove") {
+            await removeAccount(api, currentOperation, store, listing.accounts)
+            continue
+          }
+          await assertIdle(api, currentOperation)
+          if (selected.type === "login") {
+            const result = await loginOpenAI(api.client, gateway, store, loginDialogs(api, currentOperation), currentOperation)
+            currentOperation.check()
+            if (result) api.ui.toast({
+              variant: result.refreshed ? "success" : "warning",
+              message: result.refreshed ? "Account saved and active" : "Account saved and active, but refresh failed. Restart OpenCode before continuing.",
+            })
+            continue
+          }
+          const result = await store.switch(selected.id, gateway, currentOperation.signal)
+          currentOperation.check()
+          let refreshed = true
+          try { await gateway.refresh() } catch { refreshed = false }
+          currentOperation.check()
+          api.ui.toast({
+            variant: refreshed && result.historySaved ? "success" : "warning",
+            message: !refreshed ? "Credentials switched, but refresh failed. Restart OpenCode before continuing."
+              : !result.historySaved ? "Account switched, but usage history could not be saved." : "Switched OpenAI account",
+          })
+          break
+        }
+      } finally { currentOperation.signal.removeEventListener("abort", abort) }
+    } catch (error) {
+      if (currentOperation.active) api.ui.toast({ variant: "error", message: errorMessage(error), duration: 8_000 })
+    } finally {
+      currentOperation.cancel()
+      currentOperation.dispose()
+      if (operation === currentOperation) { operation = undefined; clearOwnedDialog(api, currentOperation) }
+    }
+  }
+  const unregister = api.keymap.registerLayer({
+    commands: [{
+      namespace: "palette", name: "openai.switch", title: "Switch OpenAI account",
+      desc: "Sign in, switch, or remove saved OpenAI accounts", slashName: "switch",
+      run: () => open(),
+    }],
+  })
+  api.lifecycle.onDispose(() => { operation?.cancel(); unregister() })
 }
-
-export default {
-  id: "harars.switch-auth",
-  tui,
-} satisfies TuiPluginModule & { id: string }
+export const tui: TuiPlugin = async api => registerSwitcher(api, new AccountStore(), new LocalAuthGateway(() => api.client))
+export default { id: "harars.switch-auth", tui } satisfies TuiPluginModule

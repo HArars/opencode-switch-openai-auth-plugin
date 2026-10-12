@@ -1,0 +1,155 @@
+{
+  "reviewed_on": "2026-10-12",
+  "scope": "Latest stable release authentication and TUI source files; not a full upstream audit.",
+  "sources": [
+    {
+      "repository": "anomalyco/opencode",
+      "tag": "v1.19.0",
+      "commit": "733b2c627e5aec39cb33cc22373bdce33053ef2c",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "1c9b877668f74a1a2a735fb3aee730e8bb058d1fa34c1d96e8db1e41bbec9233",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/AGENTS.md"
+        },
+        {
+          "path": "package.json",
+          "sha256": "564e182ea9f962fe4ac148b2c93f6679b38cecd62d81abf6b51f5a2a88e03262",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/package.json"
+        },
+        {
+          "path": "packages/core/src/global.ts",
+          "sha256": "37c9aae045e01cd246cd4d8c489e84ea4849b6297d3a6f9ff9b1bca57f85c013",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/core/src/global.ts"
+        },
+        {
+          "path": "packages/opencode/src/auth/index.ts",
+          "sha256": "dc897ff4b04dba1ed81f3fe24cdce7289ae32acc6bac60bc430a884bb60ad5b0",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/auth/index.ts"
+        },
+        {
+          "path": "packages/opencode/src/plugin/openai/codex.ts",
+          "sha256": "9480ee62a3de6cfd8c49651a1651f27a7381c2fa7a183a5eedff5960d284c202",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/plugin/openai/codex.ts"
+        },
+        {
+          "path": "packages/opencode/src/plugin/openai/ws-pool.ts",
+          "sha256": "d73d98545c8c5281673b1f700b78f5c9dc25d53c9117982a54b626a2e9455130",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/plugin/openai/ws-pool.ts"
+        },
+        {
+          "path": "packages/opencode/src/plugin/tui/runtime.ts",
+          "sha256": "f454bc0c2ec61d5cf605f4c65b2223692cd6731f501fd64a4a762a8868c69e70",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/plugin/tui/runtime.ts"
+        },
+        {
+          "path": "packages/opencode/src/provider/auth.ts",
+          "sha256": "7331fda8558fe517aa5a69a8aa78dcbb80af719f43caf16c8960f9c5ad7a0d2e",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/provider/auth.ts"
+        },
+        {
+          "path": "packages/opencode/src/server/routes/instance/httpapi/handlers/provider.ts",
+          "sha256": "0a42588ae88dea589963f41f8a65c354a05e82c0a864b31896e1e50439fee077",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/server/routes/instance/httpapi/handlers/provider.ts"
+        },
+        {
+          "path": "packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts",
+          "sha256": "3ce829f386267181da442d499d841463a9e532db827f75a6f41d501de6f71cf6",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts"
+        },
+        {
+          "path": "packages/plugin/package.json",
+          "sha256": "8c427c228f215ac275666993fbe9c0d44b19f7f79602a3e607356ce7925a5d09",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/plugin/package.json"
+        },
+        {
+          "path": "packages/plugin/src/tui.ts",
+          "sha256": "3b0ccca22ebf8558afb9dc055505c7c503930f2f622d1db8c3fb9ca3e9278e8c",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/plugin/src/tui.ts"
+        },
+        {
+          "path": "packages/tui/package.json",
+          "sha256": "0602e03232e799167a8e334ff3eda3fb7d54084f6dc132f971a532829de87552",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/package.json"
+        },
+        {
+          "path": "packages/tui/src/context/sync.tsx",
+          "sha256": "452035470d52b6bb3cfd58eea9df612942510126e8f759279c46c1de4899a2ab",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/context/sync.tsx"
+        },
+        {
+          "path": "packages/tui/src/plugin/api.ts",
+          "sha256": "a654b17a3425b52e670a618e00554c7b338c6f66ee79d74471258141bd2ea07d",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/plugin/api.ts"
+        },
+        {
+          "path": "packages/tui/src/plugin/command-shim.ts",
+          "sha256": "3b08c8bf8cffc2421b08f0e3e286b458afc6086bb19e1318565021525505b899",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/plugin/command-shim.ts"
+        },
+        {
+          "path": "packages/tui/src/plugin/runtime.tsx",
+          "sha256": "bdc12f38844d2dc9e7b1ba3537e52dc9f43aa62fd6d837f93ba39b16ff3ec5af",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/plugin/runtime.tsx"
+        },
+        {
+          "path": "packages/tui/src/ui/dialog-confirm.tsx",
+          "sha256": "9957e32b0d4bede47b9edf5cdcb3c73a456cf7ef276ab705611765185f1a6bfe",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/ui/dialog-confirm.tsx"
+        },
+        {
+          "path": "packages/tui/src/ui/dialog-prompt.tsx",
+          "sha256": "2786e578f29c9e80881c4fa9f6ce903597407a1c975d08ac3e22e190a8abc9d2",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/ui/dialog-prompt.tsx"
+        },
+        {
+          "path": "packages/tui/src/ui/dialog-select.tsx",
+          "sha256": "761a6d8e16291b1265a9094c973b7f7d9e1f318b835f8d2cde537c94234d8866",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/ui/dialog-select.tsx"
+        },
+        {
+          "path": "packages/tui/src/ui/dialog.tsx",
+          "sha256": "f2dcd7ffdb13c186a8ac415772d40606abbeaf3fadbe0ad0a15dbc599c668a07",
+          "url": "https://github.com/anomalyco/opencode/blob/733b2c627e5aec39cb33cc22373bdce33053ef2c/packages/tui/src/ui/dialog.tsx"
+        }
+      ]
+    },
+    {
+      "repository": "openai/codex",
+      "tag": "rust-v0.162.1",
+      "commit": "092d3acd6bec3e3a14bdc7e7a2810ab628ab759d",
+      "files": [
+        {
+          "path": "codex-rs/login/src/auth/manager.rs",
+          "sha256": "d2081e3e4f2f339a7a1aa52ea62d8485e7785c2b0a12dde1a7f470019d56dc2a",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/auth/manager.rs"
+        },
+        {
+          "path": "codex-rs/login/src/auth/storage.rs",
+          "sha256": "7a975b9db5d6d92a3997285bccb3d357acea709d63a71c3a8b8169eb2539d77b",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/auth/storage.rs"
+        },
+        {
+          "path": "codex-rs/login/src/auth/storage_error.rs",
+          "sha256": "3fd406573d2b71d4ec9fc096eabba8ca37b6215f551f77b9b5691effe9c38ebe",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/auth/storage_error.rs"
+        },
+        {
+          "path": "codex-rs/login/src/auth/storage_telemetry.rs",
+          "sha256": "aa5bb210c95dec9395307d1e17bb2a806f41da0ee0b51f996c06df52538ad53a",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/auth/storage_telemetry.rs"
+        },
+        {
+          "path": "codex-rs/login/src/lib.rs",
+          "sha256": "c83451696298640d03f5d27a86943358bd811fbba610265aa8ccbb20f446af5a",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/lib.rs"
+        },
+        {
+          "path": "codex-rs/login/src/token_data.rs",
+          "sha256": "106f67a299e800a4d1c7fac82a090a07ae5072f401494abe43433baf47152c36",
+          "url": "https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/token_data.rs"
+        }
+      ]
+    }
+  ]
+}
